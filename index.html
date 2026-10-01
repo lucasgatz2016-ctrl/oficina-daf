@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Daf Avanthy Marabá-PA - Gestão de Oficina</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- SheetJS (Excel) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- Firebase SDKs (v10) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { 
+      getFirestore, 
+      collection, 
+      doc, 
+      setDoc, 
+      deleteDoc, 
+      onSnapshot 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { 
+      getAuth, 
+      signInWithEmailAndPassword, 
+      signOut, 
+      onAuthStateChanged 
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC0djcfC-KC9lCx1x4Dn_P6MuovMykhrpc",
+      authDomain: "daf-avanthy-maraba.firebaseapp.com",
+      projectId: "daf-avanthy-maraba",
+      storageBucket: "daf-avanthy-maraba.firebasestorage.app",
+      messagingSenderId: "669223418838",
+      appId: "1:669223418838:web:6be17c8a3d71efa3948277",
+      measurementId: "G-CSCYW65MFZ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    window.db = db;
+    window.auth = auth;
+    window.firestoreFunctions = { collection, doc, setDoc, deleteDoc, onSnapshot };
+    window.authFunctions = { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+  </script>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 min-h-screen flex flex-col">
+
+  <!-- TELA DE LOGIN -->
+  <div id="loginModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6 border-t-8 border-[#d01018]">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-lg text-[#002f6c]">Identificação de Administrador</h3>
+        <button onclick="closeModal('loginModal')"><i data-lucide="x"></i></button>
+      </div>
+      <p class="text-xs text-slate-500">Para realizar alterações, digite suas credenciais administrativas:</p>
+      
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">E-mail</label>
+          <input type="email" id="loginEmail" required placeholder="seu.email@daf.com" class="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Senha</label>
+          <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full border rounded-lg px-3 py-2 text-sm bg-slate-50 focus:bg-white" />
+        </div>
+        <p id="loginError" class="text-xs text-red-600 font-semibold text-center hidden"></p>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('loginModal')" class="px-4 py-2 border rounded text-xs">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-[#d01018] text-white rounded text-xs font-bold">Entrar como Admin</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CABEÇALHO DAF AVANTHY -->
+  <header class="bg-[#002f6c] text-white shadow-lg border-b-4 border-[#d01018]">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="bg-white p-2 rounded shadow flex items-center justify-center">
+          <span class="font-black text-2xl tracking-widest text-[#002f6c]">DAF</span>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold tracking-wide">DAF AVANTHY</h1>
+          <p class="text-xs text-slate-300">Unidade Marabá - PA | Painel de Oficina (Expediente Comercial)</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 relative">
+        <span id="authStatusBadge" class="text-xs bg-slate-700 text-slate-300 border border-slate-600 px-3 py-1.5 rounded-lg font-semibold">
+          👁️ Visitante
+        </span>
+
+        <!-- MENU RETRÁTIL (DROPDOWN) -->
+        <div class="relative inline-block text-left">
+          <button onclick="toggleDropdown()" class="bg-slate-800 hover:bg-slate-900 text-xs text-white px-3 py-2 rounded-lg flex items-center gap-1.5 transition font-semibold border border-slate-600 shadow">
+            <i data-lucide="menu" class="w-4 h-4"></i> Opções ▾
+          </button>
+          <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border z-50 overflow-hidden divide-y divide-slate-100 text-slate-700">
+            <div class="py-1">
+              <button onclick="exportToExcel(); toggleDropdown();" class="w-full text-left px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 font-medium">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-700"></i> Exportar Excel
+              </button>
+              <button onclick="exportData(); toggleDropdown();" class="w-full text-left px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 font-medium">
+                <i data-lucide="download" class="w-4 h-4 text-slate-600"></i> Exportar JSON
+              </button>
+            </div>
+            <div class="py-1">
+              <label class="w-full text-left px-4 py-2 text-xs flex items-center gap-2 hover:bg-slate-100 font-medium cursor-pointer">
+                <i data-lucide="file-up" class="w-4 h-4 text-blue-600"></i> Importar Planilha
+                <input type="file" id="importFile" onchange="handleFileImport(event); toggleDropdown();" class="hidden" accept=".xlsx, .xls, .csv, .json" />
+              </label>
+              <button onclick="clearAllData(); toggleDropdown();" class="w-full text-left px-4 py-2 text-xs flex items-center gap-2 hover:bg-red-50 text-red-600 font-medium">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Zerar Oficina
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTÃO DE LOGIN / LOGOUT -->
+        <button id="authActionButton" onclick="toggleAuthAction()" class="bg-[#d01018] hover:bg-red-700 text-xs text-white px-3 py-2 rounded-lg flex items-center gap-1.5 transition font-bold shadow">
+          <i data-lucide="log-in" class="w-4 h-4"></i> Administrador
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <main class="max-w-7xl mx-auto px-4 py-6 space-y-6 flex-1 w-full">
+
+    <!-- CARDS DE STATUS -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      <div onclick="setFilterStatus('Aguardando Início')" class="cursor-pointer bg-white p-3 rounded-xl shadow border-l-4 border-cyan-500 hover:bg-cyan-50 transition">
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Aguard. Início</p>
+        <div class="flex justify-between items-center mt-1">
+          <p id="statWaitStart" class="text-2xl font-black text-cyan-900">0</p>
+          <i data-lucide="clock" class="w-5 h-5 text-cyan-600"></i>
+        </div>
+      </div>
+
+      <div onclick="setFilterStatus('Em Serviço')" class="cursor-pointer bg-white p-3 rounded-xl shadow border-l-4 border-blue-600 hover:bg-blue-50 transition">
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Em Serviço</p>
+        <div class="flex justify-between items-center mt-1">
+          <p id="statInService" class="text-2xl font-black text-blue-900">0</p>
+          <i data-lucide="wrench" class="w-5 h-5 text-blue-600"></i>
+        </div>
+      </div>
+
+      <div onclick="setFilterStatus('Em Diagnóstico')" class="cursor-pointer bg-white p-3 rounded-xl shadow border-l-4 border-purple-500 hover:bg-purple-50 transition">
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Em Diagnóstico</p>
+        <div class="flex justify-between items-center mt-1">
+          <p id="statDiag" class="text-2xl font-black text-purple-900">0</p>
+          <i data-lucide="activity" class="w-5 h-5 text-purple-500"></i>
+        </div>
+      </div>
+
+      <div onclick="setFilterStatus('Aguardando Peça')" class="cursor-pointer bg-white p-3 rounded-xl shadow border-l-4 border-amber-500 hover:bg-amber-50 transition">
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Aguardando Peça</p>
+        <div class="flex justify-between items-center mt-1">
+          <p id="statParts" class="text-2xl font-black text-amber-900">0</p>
+          <i data-lucide="package-search" class="w-5 h-5 text-amber-500"></i>
+        </div>
+      </div>
+
+      <div onclick="setFilterStatus('Fazendo Motor')" class="cursor-pointer bg-white p-3 rounded-xl shadow border-l-4 border-red-600 hover:bg-red-50 transition">
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fazendo Motor</p>
+        <div class="flex justify-between items-center mt-1">
+          <p id="statEngine" class="text-2xl font-black text-red-900">0</p>
+          <i data-lucide="cog" class="w-5 h-5 text-red-600"></i>
+        </div>
+      </div>
+
+      <div onclick="setFilterStatus('Concluído')" class="cursor-pointer bg-white p-3 rounded-xl shadow border-l-4 border-emerald-500 hover:bg-emerald-50 transition">
+        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Concluído</p>
+        <div class="flex justify-between items-center mt-1">
+          <p id="statDone" class="text-2xl font-black text-emerald-900">0</p>
+          <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAINEL DE TÉCNICOS CADASTRADOS -->
+    <div class="bg-white p-4 rounded-xl shadow space-y-3">
+      <div class="flex justify-between items-center">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <i data-lucide="users" class="w-4 h-4 text-[#002f6c]"></i> Técnicos Cadastrados na Oficina
+        </h3>
+        <button onclick="openModal('techModal')" class="bg-[#002f6c] text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow hover:bg-blue-900 transition flex items-center gap-1">
+          <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Gerenciar Técnicos
+        </button>
+      </div>
+      <div id="techCardsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+    </div>
+
+    <!-- ABAS POR TIPO DE SERVIÇO & CLIENTES -->
+    <div class="bg-white p-4 rounded-xl shadow space-y-3">
+      <div class="flex items-center justify-between border-b pb-2">
+        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+          <i data-lucide="layers" class="w-4 h-4 text-[#d01018]"></i> Navegação por Categorias:
+        </span>
+        <div class="flex items-center gap-3">
+          <button onclick="setViewMode('servicos')" id="navBtnServicos" class="text-xs px-3 py-1.5 rounded-lg font-bold bg-[#002f6c] text-white transition shadow">Filtrar por Serviços</button>
+          <button onclick="setViewMode('clientes')" id="navBtnClientes" class="text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition">👥 Clientes Cadastrados (<span id="totalClientsCountBadge">0</span>)</button>
+        </div>
+      </div>
+
+      <div id="serviceTabsContainer" class="flex flex-wrap gap-2 pt-1"></div>
+    </div>
+
+    <!-- GRÁFICOS -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-white p-4 rounded-xl shadow flex flex-col justify-between">
+        <div class="flex justify-between items-center mb-2">
+          <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-[#d01018]"></i> Porcentagem por Status
+          </h3>
+          <span class="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">Total: <span id="totalVehiclesCount">0</span></span>
+        </div>
+        <div class="relative h-64 w-full flex justify-center items-center">
+          <canvas id="statusChart"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl shadow flex flex-col justify-between">
+        <h3 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+          <i data-lucide="clock" class="w-4 h-4 text-[#002f6c]"></i> Permanência Útil na Oficina (Expediente Real)
+        </h3>
+        <div class="h-64 w-full">
+          <canvas id="timeChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAINEL DE BUSCA E ORDENAÇÃO -->
+    <div class="bg-white p-4 rounded-xl shadow space-y-4">
+      <div class="flex flex-wrap justify-between items-end gap-4 border-b pb-4">
+        <div class="flex flex-wrap items-end gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Data Inicial</label>
+            <input type="date" id="startDateInput" onchange="currentPage=1; renderVehicles()" class="border rounded-lg px-3 py-1.5 text-xs font-medium bg-slate-50" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Data Final</label>
+            <input type="date" id="endDateInput" onchange="currentPage=1; renderVehicles()" class="border rounded-lg px-3 py-1.5 text-xs font-medium bg-slate-50" />
+          </div>
+          <div class="flex items-center gap-1">
+            <button onclick="setQuickDate('today')" class="px-2.5 py-1.5 bg-slate-100 text-xs font-semibold rounded-lg border">Hoje</button>
+            <button onclick="setQuickDate('week')" class="px-2.5 py-1.5 bg-slate-100 text-xs font-semibold rounded-lg border">7 dias</button>
+            <button onclick="clearDateFilter()" class="px-2.5 py-1.5 bg-red-50 text-red-600 text-xs font-semibold rounded-lg border">Limpar</button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">Ordenar Por:</label>
+            <select id="sortOrderSelect" onchange="currentPage=1; renderVehicles()" class="border rounded-lg px-3 py-1.5 text-xs font-bold bg-slate-50">
+              <option value="date-desc">📅 Data (Mais Recentes)</option>
+              <option value="date-asc">📅 Data (Mais Antigos)</option>
+              <option value="plate-asc">🔤 Placa (A-Z)</option>
+              <option value="client-asc">🏢 Cliente (A-Z)</option>
+            </select>
+          </div>
+          <div class="relative w-64">
+            <label class="block text-xs font-bold text-slate-600 mb-1">Pesquisar</label>
+            <input type="text" id="searchInput" oninput="currentPage=1; renderVehicles()" placeholder="Buscar placa, cliente..." class="w-full border rounded-lg pl-8 pr-3 py-1.5 text-xs" />
+            <i data-lucide="search" class="w-4 h-4 absolute left-2.5 top-7 text-slate-400"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap justify-between items-center gap-3">
+        <div class="flex items-center gap-2">
+          <button onclick="openModal('vehicleModal')" class="bg-[#d01018] text-white px-4 py-2 rounded-lg text-xs font-bold shadow">+ Nova Entrada</button>
+        </div>
+        <div class="flex flex-wrap gap-1 text-xs" id="statusFilterGroup">
+          <button onclick="setFilterStatus('Todos')" id="filter-Todos" class="px-3 py-1.5 rounded-lg border bg-[#002f6c] text-white font-bold">Todos</button>
+          <button onclick="setFilterStatus('Aguardando Início')" id="filter-Aguardando Início" class="px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700">Aguard. Início</button>
+          <button onclick="setFilterStatus('Em Serviço')" id="filter-Em Serviço" class="px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700">Em Serviço</button>
+          <button onclick="setFilterStatus('Em Diagnóstico')" id="filter-Em Diagnóstico" class="px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700">Diagnóstico</button>
+          <button onclick="setFilterStatus('Aguardando Peça')" id="filter-Aguardando Peça" class="px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700">Peças</button>
+          <button onclick="setFilterStatus('Fazendo Motor')" id="filter-Fazendo Motor" class="px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700">Motor</button>
+          <button onclick="setFilterStatus('Concluído')" id="filter-Concluído" class="px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700">Concluídos</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABELA DE VEÍCULOS OU CLIENTES -->
+    <div class="bg-white rounded-xl shadow overflow-hidden">
+      <div id="tableContainerWrapper" class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-100 text-slate-700 border-b font-semibold" id="tableHeader">
+            <tr>
+              <th class="p-3">Veículo / Placa</th>
+              <th class="p-3">Cliente / Reclamação</th>
+              <th class="p-3">Técnico Responsável</th>
+              <th class="p-3">Serviço / KM</th>
+              <th class="p-3">Entrada / Saída / Perm. Útil</th>
+              <th class="p-3">Status Atual</th>
+              <th class="p-3 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="vehicleTable" class="divide-y"></tbody>
+        </table>
+      </div>
+      <div class="flex justify-between items-center p-3 bg-slate-50 border-t text-xs">
+        <span id="paginationInfo" class="text-slate-600 font-medium">Mostrando 0 de 0</span>
+        <div class="flex items-center gap-1">
+          <button onclick="changePage(-1)" id="prevPageBtn" class="px-3 py-1 bg-white border rounded font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40">Anterior</button>
+          <span id="pageIndicator" class="px-3 py-1 font-bold text-slate-700">Pág. 1</span>
+          <button onclick="changePage(1)" id="nextPageBtn" class="px-3 py-1 bg-white border rounded font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40">Próxima</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL VEÍCULO -->
+  <div id="vehicleModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-lg text-[#002f6c]" id="modalTitle">Entrada de Veículo</h3>
+        <button onclick="closeModal('vehicleModal')"><i data-lucide="x"></i></button>
+      </div>
+      <form id="vehicleForm" onsubmit="saveVehicle(event)" class="space-y-3">
+        <input type="hidden" id="vFirebaseId" />
+        <input type="hidden" id="vId" />
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold">Modelo</label><input type="text" id="vModel" required class="w-full border rounded p-2 text-sm" /></div>
+          <div><label class="text-xs font-semibold">Placa</label><input type="text" id="vPlate" required class="w-full border rounded p-2 text-sm uppercase" /></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-semibold">Cliente</label>
+              <button type="button" onclick="toggleNewClientInput()" id="toggleClientModeBtn" class="text-[10px] text-blue-600 font-bold hover:underline">+ Digitar Novo</button>
+            </div>
+            <select id="vClientSelect" onchange="onClientSelectChange()" class="w-full border rounded p-2 text-sm bg-white font-medium">
+              <option value="">Selecione o cliente cadastrado...</option>
+            </select>
+            <input type="text" id="vClientInput" placeholder="NOME DO CLIENTE" class="w-full border rounded p-2 text-sm uppercase hidden" />
+          </div>
+          <div><label class="text-xs font-semibold">KM</label><input type="text" id="vKm" class="w-full border rounded p-2 text-sm" /></div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold">Técnico</label><select id="vTech" required class="w-full border rounded p-2 text-sm"></select></div>
+          <div>
+            <label class="text-xs font-semibold">Status</label>
+            <select id="vStatus" required class="w-full border rounded p-2 text-sm font-bold bg-slate-50">
+              <option value="Aguardando Início">Aguardando Início</option>
+              <option value="Em Serviço">Em Serviço</option>
+              <option value="Em Diagnóstico">Em Diagnóstico</option>
+              <option value="Aguardando Peça">Aguardando Peça</option>
+              <option value="Fazendo Motor">Fazendo Motor</option>
+              <option value="Concluído">Concluído</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-xs font-semibold">Data Entrada</label><input type="datetime-local" id="vEntryDate" required class="w-full border rounded p-2 text-sm" /></div>
+          <div><label class="text-xs font-semibold">Data Saída</label><input type="datetime-local" id="vExitDate" class="w-full border rounded p-2 text-sm" /></div>
+        </div>
+        <div><label class="text-xs font-semibold">Tipo de Serviço</label><input type="text" id="vServiceType" placeholder="Ex: REVISÃO, MOTOR, GARANTIA..." class="w-full border rounded p-2 text-sm uppercase" /></div>
+        <div><label class="text-xs font-semibold">WhatsApp Cliente</label><input type="text" id="vPhone" class="w-full border rounded p-2 text-sm" /></div>
+        <div class="flex justify-end gap-2 pt-2 border-t">
+          <button type="button" onclick="closeModal('vehicleModal')" class="px-4 py-2 border rounded text-xs">Cancelar</button>
+          <button type="submit" class="px-4 py-2 bg-[#d01018] text-white rounded text-xs font-bold">Salvar na Nuvem</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL TÉCNICOS -->
+  <div id="techModal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-lg text-[#002f6c]">Gerenciar Técnicos</h3>
+        <button onclick="closeModal('techModal')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" id="newTechName" placeholder="Novo técnico (Ex: JOÃO SILVA)..." class="flex-1 border rounded p-2 text-sm uppercase" />
+        <button onclick="addTech()" class="bg-[#002f6c] text-white px-3 py-2 rounded text-xs font-bold">Adicionar</button>
+      </div>
+      <ul id="techList" class="divide-y max-h-48 overflow-y-auto border rounded p-2"></ul>
+    </div>
+  </div>
+
+  <!-- SCRIPT COM JORNADA REAL (SEG-SEX 8-12 / 14-18, SÁB 8-12) E FUSO LOCAL -->
+  <script>
+    const STATUS_CONFIG = {
+      'Aguardando Início': { badge: 'bg-cyan-100 text-cyan-800 border-cyan-300' },
+      'Em Serviço': { badge: 'bg-blue-100 text-blue-800 border-blue-300' },
+      'Em Diagnóstico': { badge: 'bg-purple-100 text-purple-800 border-purple-300' },
+      'Aguardando Peça': { badge: 'bg-amber-100 text-amber-800 border-amber-300' },
+      'Fazendo Motor': { badge: 'bg-red-100 text-red-800 border-red-300' },
+      'Concluído': { badge: 'bg-emerald-100 text-emerald-800 border-emerald-300' }
+    };
+
+    let techs = ['KALISON RODRIGO (MASTER)', 'ALESSANDRO SANTOS (MASTER)', 'GUILHERME SOARES (SENIOR)', 'MATEUS RIBEIRO (SENIOR)', 'MARCOS VINÍCIUS (JUNIOR)'];
+    let vehicles = [];
+
+    let currentFilterStatus = 'Todos';
+    let currentServiceTab = 'Todos';
+    let currentTechFilter = 'Todos';
+    let currentViewMode = 'servicos';
+    let isCreatingNewClient = false;
+    let statusChartInstance = null;
+    let timeChartInstance = null;
+    let isLoggedIn = false;
+
+    let currentPage = 1;
+    const itemsPerPage = 25;
+
+    function toggleDropdown() {
+      const menu = document.getElementById('dropdownMenu');
+      menu.classList.toggle('hidden');
+    }
+
+    window.addEventListener('click', function(e) {
+      if (!e.target.closest('.relative')) {
+        const menu = document.getElementById('dropdownMenu');
+        if (menu && !menu.classList.contains('hidden')) {
+          menu.classList.add('hidden');
+        }
+      }
+    });
+
+    function normalizeService(str) {
+      if (!str) return '';
+      return str.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function normalizeClient(str) {
+      if (!str) return 'NÃO INFORMADO';
+      let cleaned = str.trim().toUpperCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[\.\-\_\/\,\;]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (cleaned === 'L S G' || cleaned === 'L S.G' || cleaned === 'L.S.G.') cleaned = 'LSG';
+      return cleaned;
+    }
+
+    // Cálculo exato respeitando expediente da oficina:
+    // Seg-Sex: 08:00 às 12:00 e 14:00 às 18:00 (Total 8h)
+    // Sáb: 08:00 às 12:00 (Total 4h)
+    // Dom: Fechado
+    function calculateWorkingHours(entry, exit) {
+      if (!entry) return '0.0';
+      let start = new Date(entry);
+      let end = exit ? new Date(exit) : new Date();
+      if (start >= end) return '0.0';
+
+      let totalMinutes = 0;
+      let curr = new Date(start);
+
+      while (curr < end) {
+        let day = curr.getDay(); // 0 = Dom, 1 = Seg ... 6 = Sáb
+        let hour = curr.getHours();
+        let minute = curr.getMinutes();
+
+        // Verifica se é dia útil e horário de expediente
+        let isWeekday = (day >= 1 && day <= 5);
+        let isSaturday = (day === 6);
+
+        let inMorning = (hour >= 8 && hour < 12);
+        let inAfternoon = isWeekday && (hour >= 14 && hour < 18);
+
+        if ((isWeekday && (inMorning || inAfternoon)) || (isSaturday && inMorning)) {
+          totalMinutes += 1; // Conta minuto a minuto dentro do horário útil
+        }
+
+        curr.setMinutes(curr.getMinutes() + 1);
+      }
+
+      let hours = totalMinutes / 60;
+      return Math.max(0, hours).toFixed(1);
+    }
+
+    // Converte data para string local correta para os inputs sem erro de fuso de 21h
+    function toLocalDateTimeString(dateObj) {
+      const d = dateObj ? new Date(dateObj) : new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().slice(0, 16);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      initCharts();
+
+      const checkAuthReady = setInterval(() => {
+        if (window.auth && window.authFunctions && window.db) {
+          clearInterval(checkAuthReady);
+          const { onAuthStateChanged } = window.authFunctions;
+          
+          onAuthStateChanged(window.auth, (user) => {
+            const badge = document.getElementById('authStatusBadge');
+            const btn = document.getElementById('authActionButton');
+            if (user) {
+              isLoggedIn = true;
+              badge.className = "text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1.5 rounded-lg font-semibold";
+              badge.innerHTML = "🔑 Administrador";
+              btn.className = "bg-slate-800 hover:bg-slate-900 text-xs text-white px-3 py-2 rounded-lg flex items-center gap-1.5 transition border border-slate-600 font-semibold shadow";
+              btn.innerHTML = `<i data-lucide="log-out" class="w-4 h-4"></i> Sair`;
+            } else {
+              isLoggedIn = false;
+              badge.className = "text-xs bg-slate-700 text-slate-300 border border-slate-600 px-3 py-1.5 rounded-lg font-semibold";
+              badge.innerHTML = "👁️ Visitante";
+              btn.className = "bg-[#d01018] hover:bg-red-700 text-xs text-white px-3 py-2 rounded-lg flex items-center gap-1.5 transition font-bold shadow";
+              btn.innerHTML = `<i data-lucide="log-in" class="w-4 h-4"></i> Administrador`;
+            }
+            lucide.createIcons();
+            renderVehicles();
+            renderTechs();
+          });
+
+          setupRealtimeSync();
+        }
+      }, 200);
+    });
+
+    function toggleAuthAction() {
+      if (isLoggedIn) {
+        const { signOut } = window.authFunctions;
+        signOut(window.auth);
+      } else {
+        openModal('loginModal');
+      }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const pass = document.getElementById('loginPassword').value;
+      const errEl = document.getElementById('loginError');
+      errEl.classList.add('hidden');
+
+      try {
+        const { signInWithEmailAndPassword } = window.authFunctions;
+        await signInWithEmailAndPassword(window.auth, email, pass);
+        closeModal('loginModal');
+      } catch (err) {
+        errEl.innerText = "E-mail ou senha incorretos.";
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    function setupRealtimeSync() {
+      const { collection, onSnapshot } = window.firestoreFunctions;
+
+      onSnapshot(collection(window.db, "vehicles"), (snapshot) => {
+        vehicles = [];
+        snapshot.forEach((doc) => {
+          vehicles.push({ firebaseId: doc.id, ...doc.data() });
+        });
+        renderServiceTabs();
+        renderTechs();
+        renderVehicles();
+      }, (error) => {
+        console.error("Erro sincronização:", error);
+      });
+
+      onSnapshot(collection(window.db, "techs"), (snapshot) => {
+        if (!snapshot.empty) {
+          const loadedTechs = [];
+          snapshot.forEach((doc) => loadedTechs.push(doc.data().name));
+          if(loadedTechs.length > 0) {
+            techs = loadedTechs;
+            renderTechs();
+            renderVehicles();
+          }
+        }
+      }, (error) => {
+        console.error("Erro técnicos:", error);
+      });
+    }
+
+    async function checkAdminAndProceed(callback) {
+      if (isLoggedIn) {
+        callback();
+      } else {
+        openModal('loginModal');
+      }
+    }
+
+    async function saveVehicleToCloud(v) {
+      const { doc, setDoc } = window.firestoreFunctions;
+      const docId = String(v.firebaseId || v.id || Date.now());
+      v.firebaseId = docId;
+      await setDoc(doc(window.db, "vehicles", docId), v);
+    }
+
+    async function deleteVehicleFromCloud(docId) {
+      const { doc, deleteDoc } = window.firestoreFunctions;
+      await deleteDoc(doc(window.db, "vehicles", String(docId)));
+    }
+
+    async function clearAllData() {
+      checkAdminAndProceed(async () => {
+        if(confirm('ATENÇÃO: Tem certeza absoluta que deseja excluir TODOS os veículos e zerar a oficina?')) {
+          const listToDelete = [...vehicles];
+          for(const v of listToDelete) {
+            const id = v.firebaseId || v.id;
+            if(id) await deleteVehicleFromCloud(id);
+          }
+          vehicles = [];
+          renderVehicles();
+          renderServiceTabs();
+          renderTechs();
+          alert('Oficina zerada com sucesso!');
+        }
+      });
+    }
+
+    function setQuickDate(type) {
+      const today = new Date();
+      const endStr = today.toISOString().slice(0, 10);
+      let startStr = type === 'today' ? endStr : new Date(today.setDate(today.getDate() - 7)).toISOString().slice(0, 10);
+      document.getElementById('startDateInput').value = startStr;
+      document.getElementById('endDateInput').value = endStr;
+      currentPage = 1;
+      renderVehicles();
+    }
+
+    function clearDateFilter() {
+      document.getElementById('startDateInput').value = "";
+      document.getElementById('endDateInput').value = "";
+      currentPage = 1;
+      renderVehicles();
+    }
+
+    function setFilterStatus(status) {
+      currentFilterStatus = status;
+      document.querySelectorAll('#statusFilterGroup button').forEach(b => {
+        b.className = "px-3 py-1.5 rounded-lg border bg-slate-100 text-slate-700";
+      });
+      const activeBtn = document.getElementById('filter-' + status);
+      if (activeBtn) activeBtn.className = "px-3 py-1.5 rounded-lg border bg-[#002f6c] text-white font-bold";
+      currentPage = 1;
+      renderVehicles();
+    }
+
+    function setServiceTab(serviceName) {
+      currentServiceTab = serviceName;
+      currentViewMode = 'servicos';
+      currentPage = 1;
+      renderServiceTabs();
+      renderVehicles();
+    }
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      currentPage = 1;
+      const btnServ = document.getElementById('navBtnServicos');
+      const btnCli = document.getElementById('navBtnClientes');
+
+      if(mode === 'servicos') {
+        btnServ.className = "text-xs px-3 py-1.5 rounded-lg font-bold bg-[#002f6c] text-white transition shadow";
+        btnCli.className = "text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition";
+      } else {
+        btnCli.className = "text-xs px-3 py-1.5 rounded-lg font-bold bg-[#002f6c] text-white transition shadow";
+        btnServ.className = "text-xs px-3 py-1.5 rounded-lg font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition";
+      }
+      renderVehicles();
+    }
+
+    function filterByTechCard(techName) {
+      currentTechFilter = (currentTechFilter === techName) ? 'Todos' : techName;
+      currentPage = 1;
+      renderTechs();
+      renderVehicles();
+    }
+
+    function changePage(direction) {
+      currentPage += direction;
+      renderVehicles();
+    }
+
+    function getUniqueClientsList() {
+      const map = {};
+      vehicles.forEach(v => {
+        const raw = (v.client || '').trim().toUpperCase();
+        if(raw && raw !== 'NÃO INFORMADO') {
+          const norm = normalizeClient(raw);
+          if(!map[norm]) map[norm] = raw;
+        }
+      });
+      return Object.values(map).sort();
+    }
+
+    function updateClientSelectOptions(selectedClient = '') {
+      const select = document.getElementById('vClientSelect');
+      const input = document.getElementById('vClientInput');
+      const btn = document.getElementById('toggleClientModeBtn');
+      if(!select || !input) return;
+
+      const clients = getUniqueClientsList();
+      select.innerHTML = '<option value="">Selecione o cliente cadastrado...</option>';
+      clients.forEach(c => {
+        select.innerHTML += `<option value="${c}" ${c === selectedClient ? 'selected' : ''}>${c}</option>`;
+      });
+
+      if(isCreatingNewClient) {
+        select.classList.add('hidden');
+        input.classList.remove('hidden');
+        input.value = selectedClient;
+        btn.innerText = '📁 Selecionar Existente';
+      } else {
+        select.classList.remove('hidden');
+        input.classList.add('hidden');
+        select.value = selectedClient;
+        btn.innerText = '+ Digitar Novo';
+      }
+    }
+
+    function toggleNewClientInput() {
+      isCreatingNewClient = !isCreatingNewClient;
+      updateClientSelectOptions();
+    }
+
+    function onClientSelectChange() {
+      const select = document.getElementById('vClientSelect');
+      const input = document.getElementById('vClientInput');
+      if(select && input) input.value = select.value;
+    }
+
+    function openModal(id) {
+      if (id === 'vehicleModal') {
+        checkAdminAndProceed(() => {
+          document.getElementById(id).classList.remove('hidden');
+          if (!document.getElementById('vFirebaseId').value) {
+            document.getElementById('vehicleForm').reset();
+            document.getElementById('vFirebaseId').value = '';
+            document.getElementById('vId').value = Date.now();
+            isCreatingNewClient = false;
+            updateClientSelectOptions();
+            document.getElementById('vEntryDate').value = toLocalDateTimeString(new Date());
+          }
+        });
+        return;
+      }
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function editVehicle(firebaseId) {
+      checkAdminAndProceed(() => {
+        const v = vehicles.find(item => item.firebaseId === firebaseId || item.id == firebaseId);
+        if (!v) return;
+
+        openModal('vehicleModal');
+        document.getElementById('modalTitle').innerText = 'Editar Ordem de Serviço';
+        document.getElementById('vFirebaseId').value = v.firebaseId || v.id;
+        document.getElementById('vId').value = v.id || Date.now();
+        document.getElementById('vModel').value = v.model || '';
+        document.getElementById('vPlate').value = v.plate || '';
+        
+        isCreatingNewClient = true;
+        updateClientSelectOptions(v.client || '');
+        
+        document.getElementById('vKm').value = v.km || '';
+        document.getElementById('vTech').value = v.tech || '';
+        document.getElementById('vStatus').value = v.status || 'Aguardando Início';
+        document.getElementById('vServiceType').value = v.serviceType || '';
+        document.getElementById('vPhone').value = v.phone || '';
+
+        document.getElementById('vEntryDate').value = v.entryTime ? toLocalDateTimeString(v.entryTime) : toLocalDateTimeString(new Date());
+        document.getElementById('vExitDate').value = v.exitTime ? toLocalDateTimeString(v.exitTime) : '';
+      });
+    }
+
+    function closeModal(id) { 
+      document.getElementById(id).classList.add('hidden'); 
+      if(id === 'vehicleModal') {
+        document.getElementById('modalTitle').innerText = 'Entrada de Veículo';
+        document.getElementById('vFirebaseId').value = '';
+        isCreatingNewClient = false;
+      }
+    }
+
+    function renderTechs() {
+      const list = document.getElementById('techList');
+      const select = document.getElementById('vTech');
+      const container = document.getElementById('techCardsContainer');
+      
+      if(list) list.innerHTML = '';
+      if(select) select.innerHTML = '<option value="">Selecione...</option>';
+      if(container) container.innerHTML = '';
+
+      techs.forEach(t => {
+        const activeCount = vehicles.filter(v => v.tech === t && v.status !== 'Concluído').length;
+        const totalCount = vehicles.filter(v => v.tech === t).length;
+        const isSelected = (currentTechFilter === t);
+
+        if(list) {
+          list.innerHTML += `<li class="py-2 flex justify-between text-sm items-center">
+            <span class="font-semibold">${t}</span>
+            ${isLoggedIn ? `<button onclick="removeTech('${t}')" class="text-red-600 hover:bg-red-50 p-1 rounded text-xs"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+          </li>`;
+        }
+
+        if(select) select.innerHTML += `<option value="${t}">${t}</option>`;
+
+        if(container) {
+          container.innerHTML += `
+            <div onclick="filterByTechCard('${t}')" class="cursor-pointer bg-slate-50 border ${isSelected ? 'border-blue-600 ring-2 ring-blue-400 bg-blue-50/50' : 'border-slate-200'} p-3 rounded-xl shadow-2xs hover:bg-slate-100 transition flex flex-col justify-between">
+              <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Técnico DAF</p>
+                <p class="text-xs font-bold text-slate-800 truncate mt-0.5" title="${t}">${t}</p>
+              </div>
+              <div class="flex justify-between items-end mt-3">
+                <span class="text-[11px] text-slate-600 font-medium">Ativos: <strong class="text-blue-700">${activeCount}</strong></span>
+                <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-mono">Total: ${totalCount}</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+      lucide.createIcons();
+    }
+
+    async function addTech() {
+      checkAdminAndProceed(async () => {
+        const input = document.getElementById('newTechName');
+        if (input.value.trim()) {
+          const name = input.value.trim().toUpperCase();
+          if(!techs.includes(name)) techs.push(name);
+          const { doc, setDoc } = window.firestoreFunctions;
+          await setDoc(doc(window.db, "techs", name), { name });
+          input.value = '';
+          renderTechs();
+          renderVehicles();
+        }
+      });
+    }
+
+    async function removeTech(name) {
+      checkAdminAndProceed(async () => {
+        if(confirm(`Deseja remover o técnico ${name}?`)) {
+          techs = techs.filter(t => t !== name);
+          const { doc, deleteDoc } = window.firestoreFunctions;
+          try { await deleteDoc(doc(window.db, "techs", name)); } catch(e) {}
+          renderTechs();
+          renderVehicles();
+        }
+      });
+    }
+
+    function renderServiceTabs() {
+      const container = document.getElementById('serviceTabsContainer');
+      if(!container) return;
+
+      const serviceSet = new Set();
+      vehicles.forEach(v => {
+        const servNorm = normalizeService(v.serviceType);
+        if(servNorm !== '') serviceSet.add(servNorm);
+      });
+      const services = Array.from(serviceSet).sort();
+
+      let html = `<button onclick="setServiceTab('Todos')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${currentServiceTab === 'Todos' && currentViewMode === 'servicos' ? 'bg-[#002f6c] text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">Todos (${vehicles.length})</button>`;
+
+      services.forEach(serv => {
+        const count = vehicles.filter(v => normalizeService(v.serviceType) === serv).length;
+        const isActive = (currentServiceTab === serv && currentViewMode === 'servicos');
+        html += `<button onclick="setServiceTab('${serv}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition ${isActive ? 'bg-[#d01018] text-white shadow' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}">${serv} (${count})</button>`;
+      });
+
+      container.innerHTML = html;
+
+      const uniqueClientsSet = new Set();
+      vehicles.forEach(v => {
+        const cliNorm = normalizeClient(v.client);
+        if(cliNorm !== 'NÃO INFORMADO') uniqueClientsSet.add(cliNorm);
+      });
+      const badgeElem = document.getElementById('totalClientsCountBadge');
+      if(badgeElem) badgeElem.innerText = uniqueClientsSet.size;
+    }
+
+    async function saveVehicle(e) {
+      e.preventDefault();
+      checkAdminAndProceed(async () => {
+        const firebaseId = document.getElementById('vFirebaseId').value || String(Date.now());
+        const id = document.getElementById('vId').value || Date.now();
+        const model = document.getElementById('vModel').value.toUpperCase();
+        const plate = document.getElementById('vPlate').value.toUpperCase();
+        
+        const clientInputVal = isCreatingNewClient ? document.getElementById('vClientInput').value : document.getElementById('vClientSelect').value;
+        const client = (clientInputVal || 'NÃO INFORMADO').toUpperCase();
+
+        const km = document.getElementById('vKm').value;
+        const tech = document.getElementById('vTech').value;
+        const status = document.getElementById('vStatus').value;
+        const entryDateVal = document.getElementById('vEntryDate').value;
+        const exitDateVal = document.getElementById('vExitDate').value;
+        const serviceType = normalizeService(document.getElementById('vServiceType').value) || 'REVISÃO';
+        const phone = document.getElementById('vPhone').value;
+
+        const entryIso = entryDateVal ? new Date(entryDateVal).toISOString() : new Date().toISOString();
+        let exitIso = exitDateVal ? new Date(exitDateVal).toISOString() : null;
+
+        if (status === 'Concluído' && !exitIso) {
+          exitIso = new Date().toISOString();
+        } else if (status !== 'Concluído' && !exitDateVal) {
+          exitIso = null;
+        }
+
+        const vehicleObj = {
+          firebaseId: String(firebaseId),
+          id: Number(id),
+          model, plate, client, km, tech, status, serviceType, phone,
+          entryTime: entryIso,
+          exitTime: exitIso
+        };
+
+        const index = vehicles.findIndex(item => item.firebaseId === vehicleObj.firebaseId || item.id == vehicleObj.id);
+        if (index >= 0) vehicles[index] = vehicleObj;
+        else vehicles.unshift(vehicleObj);
+
+        await saveVehicleToCloud(vehicleObj);
+        closeModal('vehicleModal');
+        renderVehicles();
+        renderServiceTabs();
+        renderTechs();
+      });
+    }
+
+    async function changeVehicleField(firebaseId, field, value) {
+      checkAdminAndProceed(async () => {
+        const v = vehicles.find(item => item.firebaseId === firebaseId || item.id == firebaseId);
+        if (v) {
+          if (field === 'serviceType') v[field] = normalizeService(value);
+          else if (field === 'client' || field === 'model' || field === 'plate') v[field] = value.toUpperCase();
+          else v[field] = value;
+
+          if (field === 'status') {
+            if (value === 'Concluído' && !v.exitTime) v.exitTime = new Date().toISOString();
+            else if (value !== 'Concluído') v.exitTime = null;
+          }
+          await saveVehicleToCloud(v);
+          renderVehicles();
+          renderServiceTabs();
+          renderTechs();
+        }
+      });
+      if (!isLoggedIn) renderVehicles();
+    }
+
+    async function deleteVehicle(firebaseId) {
+      checkAdminAndProceed(async () => {
+        if (confirm('Remover esta Ordem de Serviço?')) {
+          vehicles = vehicles.filter(item => item.firebaseId !== firebaseId && item.id != firebaseId);
+          await deleteVehicleFromCloud(firebaseId);
+          renderVehicles();
+          renderServiceTabs();
+          renderTechs();
+        }
+      });
+    }
+
+    function renderVehicles() {
+      const tableHeader = document.getElementById('tableHeader');
+      const tbody = document.getElementById('vehicleTable');
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const startDate = document.getElementById('startDateInput').value;
+      const endDate = document.getElementById('endDateInput').value;
+      const sortOrder = document.getElementById('sortOrderSelect').value;
+
+      tbody.innerHTML = '';
+
+      let counts = { 'Aguardando Início': 0, 'Em Serviço': 0, 'Em Diagnóstico': 0, 'Aguardando Peça': 0, 'Fazendo Motor': 0, 'Concluído': 0 };
+      vehicles.forEach(v => {
+        const st = v.status || 'Aguardando Início';
+        if (counts[st] !== undefined) counts[st]++;
+      });
+
+      document.getElementById('statWaitStart').innerText = counts['Aguardando Início'];
+      document.getElementById('statInService').innerText = counts['Em Serviço'];
+      document.getElementById('statDiag').innerText = counts['Em Diagnóstico'];
+      document.getElementById('statParts').innerText = counts['Aguardando Peça'];
+      document.getElementById('statEngine').innerText = counts['Fazendo Motor'];
+      document.getElementById('statDone').innerText = counts['Concluído'];
+      document.getElementById('totalVehiclesCount').innerText = vehicles.length;
+      updateCharts(vehicles);
+
+      // MODO CLIENTES
+      if (currentViewMode === 'clientes') {
+        tableHeader.innerHTML = `
+          <tr>
+            <th class="p-3">Cliente / Razão Social</th>
+            <th class="p-3 text-center">Total de Veículos / OS</th>
+            <th class="p-3">Último Veículo Cadastrado</th>
+            <th class="p-3">Contato WhatsApp</th>
+            <th class="p-3 text-center">Ações</th>
+          </tr>
+        `;
+
+        const clientMap = {};
+        vehicles.forEach(v => {
+          const rawClient = (v.client || 'NÃO INFORMADO').trim().toUpperCase();
+          const normKey = normalizeClient(rawClient);
+          
+          if(!clientMap[normKey]) {
+            clientMap[normKey] = { displayName: rawClient, count: 0, lastVehicle: v.model || 'N/I', plate: v.plate || '', phone: v.phone || '' };
+          } else {
+            if(rawClient.length > clientMap[normKey].displayName.length) clientMap[normKey].displayName = rawClient;
+          }
+          clientMap[normKey].count++;
+          if(v.phone && !clientMap[normKey].phone) clientMap[normKey].phone = v.phone;
+        });
+
+        let clientList = Object.values(clientMap).filter(c => c.displayName.toLowerCase().includes(query) || c.plate.toLowerCase().includes(query));
+        clientList.sort((a,b) => a.displayName.localeCompare(b.displayName));
+
+        const totalItems = clientList.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const paginatedClients = clientList.slice(startIndex, startIndex + itemsPerPage);
+
+        document.getElementById('paginationInfo').innerText = `Mostrando ${paginatedClients.length} de ${totalItems} clientes`;
+        document.getElementById('pageIndicator').innerText = `Pág. ${currentPage} de ${totalPages}`;
+        document.getElementById('prevPageBtn').disabled = (currentPage === 1);
+        document.getElementById('nextPageBtn').disabled = (currentPage === totalPages);
+
+        if(paginatedClients.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400 text-xs">Nenhum cliente encontrado.</td></tr>`;
+          return;
+        }
+
+        paginatedClients.forEach(c => {
+          tbody.innerHTML += `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="p-3 font-bold text-slate-800">${c.displayName}</td>
+              <td class="p-3 text-center font-mono font-bold text-blue-900">${c.count} OS(s)</td>
+              <td class="p-3 text-xs text-slate-600">${c.lastVehicle} <span class="font-mono bg-slate-100 px-1.5 py-0.5 rounded border">${c.plate}</span></td>
+              <td class="p-3 text-xs">${c.phone ? `<a href="https://wa.me/55${c.phone.replace(/\D/g,'')}" target="_blank" class="text-emerald-700 font-semibold hover:underline">📱 ${c.phone}</a>` : '<span class="text-slate-400">Não informado</span>'}</td>
+              <td class="p-3 text-center">
+                <button onclick="filterByClientName('${c.displayName}')" class="bg-blue-50 text-blue-700 hover:bg-blue-100 px-2.5 py-1 rounded text-xs font-semibold">Ver Veículos</button>
+              </td>
+            </tr>
+          `;
+        });
+        lucide.createIcons();
+        return;
+      }
+
+      // MODO SERVIÇOS / PADRÃO
+      tableHeader.innerHTML = `
+        <tr>
+          <th class="p-3">Veículo / Placa</th>
+          <th class="p-3">Cliente / Reclamação</th>
+          <th class="p-3">Técnico Responsável</th>
+          <th class="p-3">Serviço / KM</th>
+          <th class="p-3">Entrada / Saída / Perm. Útil</th>
+          <th class="p-3">Status Atual</th>
+          <th class="p-3 text-center">Ações</th>
+        </tr>
+      `;
+
+      let filtered = vehicles.filter(v => {
+        const matchesQuery = (v.model?.toLowerCase().includes(query) || v.plate?.toLowerCase().includes(query) || v.client?.toLowerCase().includes(query) || v.tech?.toLowerCase().includes(query) || v.serviceType?.toLowerCase().includes(query));
+        
+        const vStatus = (v.status || 'Aguardando Início').trim().toLowerCase();
+        const fStatus = currentFilterStatus.trim().toLowerCase();
+        const matchesStatus = (currentFilterStatus === 'Todos') || (vStatus === fStatus);
+
+        const vServNorm = normalizeService(v.serviceType);
+        const curServNorm = normalizeService(currentServiceTab);
+        const matchesService = (currentServiceTab === 'Todos') || (vServNorm === curServNorm);
+
+        const vTechClean = (v.tech || '').trim().toLowerCase();
+        const currentTechClean = currentTechFilter.trim().toLowerCase();
+        const matchesTech = (currentTechFilter === 'Todos') || (vTechClean === currentTechClean);
+
+        let matchesDate = true;
+        if (v.entryTime && (startDate || endDate)) {
+          const entryStr = new Date(v.entryTime).toISOString().slice(0, 10);
+          if (startDate && entryStr < startDate) matchesDate = false;
+          if (endDate && entryStr > endDate) matchesDate = false;
+        }
+        return matchesQuery && matchesStatus && matchesService && matchesTech && matchesDate;
+      });
+
+      filtered.sort((a, b) => {
+        if (sortOrder === 'date-desc') return new Date(b.entryTime || 0) - new Date(a.entryTime || 0);
+        if (sortOrder === 'date-asc') return new Date(a.entryTime || 0) - new Date(b.entryTime || 0);
+        if (sortOrder === 'plate-asc') return (a.plate || '').localeCompare(b.plate || '');
+        if (sortOrder === 'client-asc') return (a.client || '').localeCompare(b.client || '');
+        return 0;
+      });
+
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const paginatedVehicles = filtered.slice(startIndex, startIndex + itemsPerPage);
+
+      document.getElementById('paginationInfo').innerText = `Mostrando ${paginatedVehicles.length} de ${totalItems} registros`;
+      document.getElementById('pageIndicator').innerText = `Pág. ${currentPage} de ${totalPages}`;
+      document.getElementById('prevPageBtn').disabled = (currentPage === 1);
+      document.getElementById('nextPageBtn').disabled = (currentPage === totalPages);
+
+      if(paginatedVehicles.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 text-xs">Nenhum veículo encontrado com os filtros atuais.</td></tr>`;
+        return;
+      }
+
+      paginatedVehicles.forEach(v => {
+        const hours = calculateWorkingHours(v.entryTime, v.exitTime);
+        const cfg = STATUS_CONFIG[v.status] || STATUS_CONFIG['Aguardando Início'];
+        const fId = v.firebaseId || v.id;
+
+        let techOptions = techs.map(t => `<option value="${t}" ${v.tech === t ? 'selected' : ''}>${t}</option>`).join('');
+        if (!techs.includes(v.tech) && v.tech) {
+          techOptions = `<option value="${v.tech}" selected>${v.tech}</option>` + techOptions;
+        }
+
+        const entryFormatted = v.entryTime ? new Date(v.entryTime).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'}) : 'N/I';
+        const exitFormatted = v.exitTime ? new Date(v.exitTime).toLocaleString('pt-BR', {dateStyle: 'short', timeStyle: 'short'}) : '<span class="text-amber-600 font-semibold">Em aberto</span>';
+
+        let actionCell = `
+          <button onclick="editVehicle('${fId}')" class="p-1 hover:bg-blue-100 text-blue-600 rounded" title="Editar"><i data-lucide="edit" class="w-4 h-4 inline"></i></button>
+          <button onclick="deleteVehicle('${fId}')" class="p-1 hover:bg-red-100 text-red-600 rounded" title="Excluir"><i data-lucide="trash-2" class="w-4 h-4 inline"></i></button>
+        `;
+
+        let techCell = `
+          <select onchange="changeVehicleField('${fId}', 'tech', this.value)" class="border rounded px-2 py-1 text-xs bg-white font-medium shadow-2xs">
+            <option value="">Não Atribuído</option>
+            ${techOptions}
+          </select>
+        `;
+
+        let statusCell = `
+          <select onchange="changeVehicleField('${fId}', 'status', this.value)" class="text-xs font-bold border px-2 py-1 rounded-lg ${cfg.badge}">
+            <option value="Aguardando Início" ${v.status === 'Aguardando Início' ? 'selected' : ''}>⏳ Aguardando Início</option>
+            <option value="Em Serviço" ${v.status === 'Em Serviço' ? 'selected' : ''}>🔧 Em Serviço</option>
+            <option value="Em Diagnóstico" ${v.status === 'Em Diagnóstico' ? 'selected' : ''}>🔍 Em Diagnóstico</option>
+            <option value="Aguardando Peça" ${v.status === 'Aguardando Peça' ? 'selected' : ''}>📦 Aguardando Peça</option>
+            <option value="Fazendo Motor" ${v.status === 'Fazendo Motor' ? 'selected' : ''}>⚙ Fazendo Motor</option>
+            <option value="Concluído" ${v.status === 'Concluído' ? 'selected' : ''}>✅ Concluído</option>
+          </select>
+        `;
+
+        tbody.innerHTML += `
+          <tr class="hover:bg-slate-50 transition">
+            <td class="p-3 font-semibold">
+              <div class="cursor-pointer text-blue-900 hover:underline" onclick="editVehicle('${fId}')">${v.model || 'DAF XF'}</div>
+              <span class="text-xs font-mono bg-slate-100 px-2 py-0.5 rounded border">${v.plate}</span>
+            </td>
+            <td class="p-3">
+              <span class="font-bold text-xs text-slate-800">${v.client || 'N/I'}</span>
+              ${v.complaint ? `<br/><span class="text-xs text-red-600 italic">"${v.complaint}"</span>`:''}
+            </td>
+            <td class="p-3 text-xs">${techCell}</td>
+            <td class="p-3 text-xs">
+              <input type="text" value="${v.serviceType || 'GERAL'}" onblur="changeVehicleField('${fId}', 'serviceType', this.value)" class="border rounded px-2 py-1 text-xs bg-slate-50 w-full focus:bg-white uppercase" />
+              <span class="text-[10px] text-slate-400 block">KM: ${v.km || 'N/I'}</span>
+            </td>
+            <td class="p-3 text-xs">
+              <span class="text-slate-600">Ent: ${entryFormatted}</span><br/>
+              <span class="text-slate-600">Sai: ${exitFormatted}</span><br/>
+              <span class="font-bold text-indigo-700">⏱ ${hours}h úteis</span>
+            </td>
+            <td class="p-3">${statusCell}</td>
+            <td class="p-3 text-center space-x-1">${actionCell}</td>
+          </tr>`;
+      });
+
+      lucide.createIcons();
+    }
+
+    function filterByClientName(clientName) {
+      setViewMode('servicos');
+      document.getElementById('searchInput').value = clientName;
+      currentPage = 1;
+      renderVehicles();
+    }
+
+    function initCharts() {
+      const ctxStatus = document.getElementById('statusChart').getContext('2d');
+      statusChartInstance = new Chart(ctxStatus, {
+        type: 'doughnut',
+        data: { 
+          labels: ['Aguardando Início', 'Em Serviço', 'Em Diagnóstico', 'Aguardando Peça', 'Fazendo Motor', 'Concluído'], 
+          datasets: [{ 
+            data: [0, 0, 0, 0, 0, 0], 
+            backgroundColor: ['#06b6d4', '#002f6c', '#8b5cf6', '#f59e0b', '#d01018', '#10b981'] 
+          }] 
+        },
+        plugins: [ChartDataLabels],
+        options: { 
+          responsive: true, 
+          maintainAspectRatio: false, 
+          plugins: { 
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+            datalabels: { 
+              color: '#fff',
+              font: { weight: 'bold', size: 10 },
+              formatter: (val, ctx) => {
+                const total = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+                if (val === 0 || total === 0) return '';
+                const percentage = (val * 100 / total).toFixed(1);
+                return percentage < 1.5 ? '' : percentage + '%';
+              },
+              anchor: 'end', align: 'start', offset: 4
+            } 
+          } 
+        }
+      });
+
+      const ctxTime = document.getElementById('timeChart').getContext('2d');
+      timeChartInstance = new Chart(ctxTime, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Horas Úteis', data: [], backgroundColor: '#002f6c' }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    function updateCharts(list) {
+      if (!statusChartInstance) return;
+      let counts = { 'Aguardando Início': 0, 'Em Serviço': 0, 'Em Diagnóstico': 0, 'Aguardando Peça': 0, 'Fazendo Motor': 0, 'Concluído': 0 };
+      list.forEach(v => {
+        const st = v.status || 'Aguardando Início';
+        if (counts[st] !== undefined) counts[st]++;
+      });
+      statusChartInstance.data.datasets[0].data = Object.values(counts);
+      statusChartInstance.update();
+
+      const sample = list.slice(-8);
+      timeChartInstance.data.labels = sample.map(v => v.plate);
+      timeChartInstance.data.datasets[0].data = sample.map(v => calculateWorkingHours(v.entryTime, v.exitTime));
+      timeChartInstance.update();
+    }
+
+    function exportToExcel() {
+      if (!vehicles || vehicles.length === 0) {
+        alert("Não há dados cadastrados para exportar.");
+        return;
+      }
+      const dataToExport = vehicles.map(v => ({
+        "Modelo": v.model || "",
+        "Placa": v.plate || "",
+        "Cliente": v.client || "",
+        "KM": v.km || "",
+        "Tipo de Serviço": v.serviceType || "",
+        "Técnico Responsável": v.tech || "",
+        "Status Atual": v.status || "",
+        "Data Entrada": v.entryTime ? new Date(v.entryTime).toLocaleString('pt-BR') : "",
+        "Data Saída": v.exitTime ? new Date(v.exitTime).toLocaleString('pt-BR') : "Em aberto",
+        "Permanência Útil (h)": calculateWorkingHours(v.entryTime, v.exitTime),
+        "WhatsApp": v.phone || ""
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Ordens de Serviço");
+      XLSX.writeFile(workbook, `daf_avanthy_maraba_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ techs, vehicles }, null, 2));
+      const dl = document.createElement('a');
+      dl.setAttribute("href", dataStr);
+      dl.setAttribute("download", `daf_avanthy_maraba_${new Date().toISOString().slice(0,10)}.json`);
+      dl.click();
+    }
+
+    async function handleFileImport(event) {
+      checkAdminAndProceed(async () => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const fileName = file.name.toLowerCase();
+
+        try {
+          if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+              const data = new Uint8Array(e.target.result);
+              const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+              const sheet = workbook.Sheets[workbook.SheetNames[0]];
+              const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+              if (!rows || rows.length === 0) {
+                alert("A planilha está vazia.");
+                return;
+              }
+
+              let count = 0;
+              for (const row of rows) {
+                const findVal = (terms) => {
+                  const key = Object.keys(row).find(k => terms.some(t => k.toString().toLowerCase().trim().includes(t)));
+                  return key ? row[key] : "";
+                };
+
+                const plate = String(findVal(['placa'])).trim().toUpperCase();
+                const model = String(findVal(['modelo'])).trim().toUpperCase() || 'DAF XF';
+                const client = String(findVal(['cliente'])).trim().toUpperCase() || 'NÃO INFORMADO';
+                const km = findVal(['km']);
+                const serviceType = normalizeService(String(findVal(['tipo de serviço', 'tipo de servico', 'servico']))) || 'REVISÃO';
+                const complaint = String(findVal(['reclamação', 'reclamacao', 'defeito'])).trim();
+                const rawStatus = String(findVal(['status', 'situação', 'situacao'])).trim();
+                const tech = String(findVal(['responsável', 'responsavel', 'técnico', 'tecnico'])).trim().toUpperCase();
+                
+                let dateEntryRaw = findVal(['data entrada', 'entrada']);
+                let dateExitRaw = findVal(['data saída', 'data saida', 'saída', 'saida']);
+
+                let entryIso = new Date().toISOString();
+                if (dateEntryRaw instanceof Date && !isNaN(dateEntryRaw)) entryIso = dateEntryRaw.toISOString();
+                else if (typeof dateEntryRaw === 'string' && dateEntryRaw.length > 5) entryIso = new Date(dateEntryRaw).toISOString();
+
+                let exitIso = null;
+                if (dateExitRaw instanceof Date && !isNaN(dateExitRaw)) exitIso = dateExitRaw.toISOString();
+                else if (typeof dateExitRaw === 'string' && dateExitRaw.length > 5) exitIso = new Date(dateExitRaw).toISOString();
+
+                let mappedStatus = 'Aguardando Início';
+                const stLower = rawStatus.toLowerCase();
+                if (stLower.includes('finaliz') || stLower.includes('conclu') || stLower.includes('pronto') || stLower.includes('entreg')) {
+                  mappedStatus = 'Concluído';
+                } else if (stLower.includes('serviço') || stLower.includes('servico')) {
+                  mappedStatus = 'Em Serviço';
+                } else if (stLower.includes('diag')) {
+                  mappedStatus = 'Em Diagnóstico';
+                } else if (stLower.includes('peça') || stLower.includes('peca') || stLower.includes('aguardando')) {
+                  mappedStatus = 'Aguardando Peça';
+                } else if (stLower.includes('motor')) {
+                  mappedStatus = 'Fazendo Motor';
+                }
+
+                if (plate && plate !== "UNDEFINED" && plate !== "") {
+                  const idNum = Date.now() + Math.floor(Math.random() * 1000000);
+                  const vObj = {
+                    firebaseId: String(idNum),
+                    id: idNum,
+                    model, plate, client, km, serviceType, complaint,
+                    tech: tech || 'NÃO ATRIBUÍDO',
+                    status: mappedStatus,
+                    entryTime: entryIso,
+                    exitTime: exitIso || (mappedStatus === 'Concluído' ? new Date().toISOString() : null),
+                    phone: ''
+                  };
+                  vehicles.unshift(vObj);
+                  await saveVehicleToCloud(vObj);
+                  count++;
+                }
+              }
+              renderVehicles();
+              renderServiceTabs();
+              renderTechs();
+              alert(`Sucesso! ${count} veículos importados.`);
+            };
+            reader.readAsArrayBuffer(file);
+          }
+        } catch (err) {
+          alert("Erro ao importar o arquivo: " + err.message);
+        } finally {
+          event.target.value = '';
+        }
+      });
+      if (!isLoggedIn) event.target.value = '';
+    }
+  </script>
+</body>
+</html>
